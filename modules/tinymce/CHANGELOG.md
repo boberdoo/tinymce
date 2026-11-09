@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 6.8.6.1 - 2026-11-09
+
+### Security
+- Internal `data-mce-src`, `data-mce-href` and `data-mce-style` attributes in content could override validated attributes during serialization. CVE-2026-47759
+- Elements following nested or sibling `svg` elements could bypass sanitization due to incorrect namespace scope tracking. CVE-2026-47760
+- Forged `data-mce-object` and `data-mce-p-*` attributes were not sanitized when the media plugin restored embed elements. CVE-2026-47761
+- Forged `mce:protected` comments were restored without being validated against the `protect` option. CVE-2026-47762
+
 ## 6.8.6 - 2025-05-29
 
 ### Improved

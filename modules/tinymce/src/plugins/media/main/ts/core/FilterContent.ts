@@ -1,4 +1,4 @@
-import { Arr, Obj } from '@ephox/katamari';
+import { Arr, Obj, Strings } from '@ephox/katamari';
 
 import Editor from 'tinymce/core/api/Editor';
 import AstNode from 'tinymce/core/api/html/Node';
@@ -7,6 +7,8 @@ import * as Nodes from './Nodes';
 import * as Sanitize from './Sanitize';
 
 declare let unescape: any;
+
+const embedElements = [ 'iframe', 'video', 'audio', 'object', 'embed' ];
 
 const setup = (editor: Editor): void => {
   editor.on('PreInit', () => {
@@ -31,7 +33,7 @@ const setup = (editor: Editor): void => {
     });
 
     // Converts iframe, video etc into placeholder images
-    parser.addNodeFilter('iframe,video,audio,object,embed', Nodes.placeHolderConverter(editor));
+    parser.addNodeFilter(embedElements.join(','), Nodes.placeHolderConverter(editor));
 
     // Replaces placeholder images with real elements for video, object, iframe etc
     serializer.addAttributeFilter('data-mce-object', (nodes, name) => {
@@ -43,6 +45,13 @@ const setup = (editor: Editor): void => {
         }
 
         const realElmName = node.attr(name) as string;
+
+        // The placeholder may have been forged in the content so only embeds can be restored from it
+        if (!Arr.contains(embedElements, realElmName)) {
+          node.remove();
+          continue;
+        }
+
         const realElm = new AstNode(realElmName, 1);
 
         // Add width/height to everything but audio
@@ -72,18 +81,29 @@ const setup = (editor: Editor): void => {
           const attrName = attribs[ai].name;
 
           if (attrName.indexOf('data-mce-p-') === 0) {
-            realElm.attr(attrName.substr(11), attribs[ai].value);
+            const realAttrName = attrName.substr(11);
+
+            if (!Strings.startsWith(realAttrName, 'data-mce-')) {
+              realElm.attr(realAttrName, attribs[ai].value);
+            }
           }
         }
 
-        // Inject innerhtml
-        const innerHtml = node.attr('data-mce-html');
-        if (innerHtml) {
-          const fragment = Sanitize.parseAndSanitize(editor, realElmName, unescape(innerHtml));
-          Arr.each(fragment.children(), (child) => realElm.append(child));
-        }
+        Sanitize.sanitizeEmbed(editor, realElm).fold(
+          () => {
+            node.remove();
+          },
+          (sanitizedElm) => {
+            // Inject innerhtml
+            const innerHtml = node.attr('data-mce-html');
+            if (innerHtml) {
+              const fragment = Sanitize.parseAndSanitize(editor, realElmName, unescape(innerHtml));
+              Arr.each(fragment.children(), (child) => sanitizedElm.append(child));
+            }
 
-        node.replace(realElm);
+            node.replace(sanitizedElm);
+          }
+        );
       }
     });
   });

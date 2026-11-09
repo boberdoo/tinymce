@@ -116,6 +116,7 @@ const mkSerializerSettings = (editor: Editor): DomSerializerSettings => {
     ...mkSchemaSettings(editor),
     ...removeUndefined<DomSerializerSettings>({
       // SerializerSettings
+      protect: getOption('protect'),
       remove_trailing_brs: getOption('remove_trailing_brs'),
       pad_empty_with_br: getOption('pad_empty_with_br'),
       url_converter: getOption('url_converter'),
@@ -145,10 +146,11 @@ const createParser = (editor: Editor): DomParser => {
       const node = nodes[i];
       let value: string | null | undefined = node.attr(name);
 
-      // Add internal attribute if we need to we don't on a refresh of the document
-      if (value && !node.attr(internalName)) {
+      // Always generate the internal attribute from the validated value, as any existing one may have come from the content
+      if (value) {
         // Don't duplicate these since they won't get modified by any browser
         if (value.indexOf('data:') === 0 || value.indexOf('blob:') === 0) {
+          node.attr(internalName, null);
           continue;
         }
 
@@ -167,6 +169,20 @@ const createParser = (editor: Editor): DomParser => {
         } else {
           node.attr(internalName, editor.convertURL(value, name, node.name));
         }
+      }
+    }
+  });
+
+  // Remove internal attributes from the content that aren't paired with an attribute to generate them from
+  parser.addAttributeFilter('data-mce-src,data-mce-href,data-mce-style', (nodes, name) => {
+    const externalName = name.substring('data-mce-'.length);
+
+    let i = nodes.length;
+    while (i--) {
+      const node = nodes[i];
+
+      if (!node.attr(externalName)) {
+        node.attr(name, null);
       }
     }
   });

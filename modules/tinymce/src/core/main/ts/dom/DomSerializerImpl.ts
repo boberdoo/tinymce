@@ -17,6 +17,7 @@ import * as DomSerializerPreProcess from './DomSerializerPreProcess';
 import { isWsPreserveElement } from './ElementType';
 
 interface DomSerializerSettings extends DomParserSettings, WriterSettings, SchemaSettings, HtmlSerializerSettings {
+  protect?: RegExp[];
   remove_trailing_brs?: boolean;
   url_converter?: URLConverter;
   url_converter_scope?: {};

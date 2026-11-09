@@ -20,17 +20,16 @@ export const createNamespaceTracker = (): NamespaceTracker => {
   const peek = () => scopes[scopes.length - 1];
 
   const track = (node: Node): NamespaceType => {
+    // Leave every scope that the node is outside of, since nested or sibling roots can leave multiple scopes to close
+    while (scopes.length > 0 && !peek().contains(node)) {
+      scopes.pop();
+    }
+
     if (isNonHtmlElementRoot(node)) {
       scopes.push(node);
     }
 
-    let currentScope: Node | undefined = peek();
-    if (currentScope && !currentScope.contains(node)) {
-      scopes.pop();
-      currentScope = peek();
-    }
-
-    return toScopeType(currentScope);
+    return toScopeType(peek());
   };
 
   const current = () => toScopeType(peek());

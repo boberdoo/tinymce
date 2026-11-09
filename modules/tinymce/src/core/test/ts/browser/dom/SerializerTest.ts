@@ -611,7 +611,7 @@ describe('browser.tinymce.core.dom.SerializerTest', () => {
   });
 
   it('Protected blocks', () => {
-    const ser = DomSerializer({ fix_list_elements: true });
+    const ser = DomSerializer({ fix_list_elements: true, protect: [ /<noscript.*?<\/noscript>/g ] });
 
     ser.setRules('noscript[test]');
 
@@ -623,6 +623,37 @@ describe('browser.tinymce.core.dom.SerializerTest', () => {
 
     setTestHtml('<!--mce:protected ' + escape('<noscript><!-- text --><br></noscript>') + '-->');
     assert.equal(ser.serialize(getTestElement()), '<noscript><!-- text --><br></noscript>');
+  });
+
+  it('CVE-2026-47762: Protected blocks should only be restored if they fully match a protect pattern', () => {
+    const payload = '<img src="x" onerror="alert(1)">';
+    const protectedHtml = (html: string) => '<!--mce:protected ' + escape(html) + '-->';
+
+    const unprotectedSer = DomSerializer({ fix_list_elements: true });
+    unprotectedSer.setRules('noscript[test],p');
+    setTestHtml('<p>a</p>' + protectedHtml(payload));
+    assert.equal(unprotectedSer.serialize(getTestElement()), '<p>a</p>');
+
+    const ser = DomSerializer({ fix_list_elements: true, protect: [ /<noscript>.*?<\/noscript>/gi, /^<x-a>$/m ] });
+    ser.setRules('noscript[test],p');
+
+    setTestHtml('<p>a</p>' + protectedHtml(payload));
+    assert.equal(ser.serialize(getTestElement()), '<p>a</p>');
+
+    setTestHtml('<p>a</p>' + protectedHtml('<noscript></noscript>' + payload));
+    assert.equal(ser.serialize(getTestElement()), '<p>a</p>');
+
+    setTestHtml('<p>a</p>' + protectedHtml(payload + '<noscript></noscript>'));
+    assert.equal(ser.serialize(getTestElement()), '<p>a</p>');
+
+    setTestHtml('<p>a</p>' + protectedHtml(payload + '\n<x-a>'));
+    assert.equal(ser.serialize(getTestElement()), '<p>a</p>');
+
+    // Global patterns are stateful so must be matched the same way every time
+    for (let i = 0; i < 3; i++) {
+      setTestHtml(protectedHtml('<NOSCRIPT></NOSCRIPT>'));
+      assert.equal(ser.serialize(getTestElement()), '<NOSCRIPT></NOSCRIPT>');
+    }
   });
 
   it('Style with whitespace at beginning with element_format: xhtml', () => {

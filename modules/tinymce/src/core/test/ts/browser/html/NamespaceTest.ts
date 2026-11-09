@@ -58,4 +58,40 @@ describe('browser.tinymce.core.html.NamespaceTest', () => {
     tracker.reset();
     assert.equal(tracker.current(), 'html');
   });
+
+  const getStates = (html: string): Array<[ string, Namespace.NamespaceType ]> => {
+    const tracker = Namespace.createNamespaceTracker();
+    const walker = document.createTreeWalker(SugarElement.fromHtml(html).dom, NodeFilter.SHOW_ELEMENT);
+    const states: Array<[ string, Namespace.NamespaceType ]> = [];
+    while (walker.nextNode()) {
+      states.push([ walker.currentNode.nodeName.toLowerCase(), tracker.track(walker.currentNode) ]);
+      assert.equal(tracker.current(), states[states.length - 1][1]);
+    }
+    return states;
+  };
+
+  it('CVE-2026-47760: Namespace tracker should leave all scopes after nested svgs', () => {
+    assert.deepEqual(getStates('<div><svg><svg></svg></svg><img></div>'), [
+      [ 'svg', 'svg' ],
+      [ 'svg', 'svg' ],
+      [ 'img', 'html' ]
+    ]);
+  });
+
+  it('CVE-2026-47760: Namespace tracker should not retain the scope of sibling svgs', () => {
+    assert.deepEqual(getStates('<div><svg></svg><svg></svg><img></div>'), [
+      [ 'svg', 'svg' ],
+      [ 'svg', 'svg' ],
+      [ 'img', 'html' ]
+    ]);
+  });
+
+  it('CVE-2026-47760: Namespace tracker should stay in the outer svg after leaving a nested svg', () => {
+    assert.deepEqual(getStates('<div><svg><svg></svg><circle></circle></svg><img></div>'), [
+      [ 'svg', 'svg' ],
+      [ 'svg', 'svg' ],
+      [ 'circle', 'svg' ],
+      [ 'img', 'html' ]
+    ]);
+  });
 });

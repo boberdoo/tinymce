@@ -9,6 +9,13 @@ import * as RemoveTrailingBr from './RemoveTrailingBr';
 
 declare const unescape: any;
 
+const isProtectedContent = (content: string, patterns: RegExp[]): boolean =>
+  Arr.exists(patterns, (pattern) => {
+    // Matches against a copy without the global and sticky flags as those make the shared pattern stateful
+    const match = new RegExp(pattern.source, pattern.flags.replace(/[gy]/g, '')).exec(content);
+    return match?.index === 0 && match[0].length === content.length;
+  });
+
 const register = (htmlParser: DomParser, settings: DomSerializerSettings, dom: DOMUtils): void => {
   // Convert tabindex back to elements when serializing contents
   htmlParser.addAttributeFilter('data-mce-tabindex', (nodes, name) => {
@@ -130,10 +137,17 @@ const register = (htmlParser: DomParser, settings: DomSerializerSettings, dom: D
         node.type = 4;
         node.value = dom.decode(value.replace(/^\[CDATA\[|\]\]$/g, ''));
       } else if (value?.indexOf('mce:protected ') === 0) {
-        node.name = '#text';
-        node.type = 3;
-        node.raw = true;
-        node.value = unescape(value).substr(14);
+        const content = unescape(value).substr(14);
+
+        // The comment may have been forged in the content so only restore what the protect patterns would have captured
+        if (isProtectedContent(content, settings.protect ?? [])) {
+          node.name = '#text';
+          node.type = 3;
+          node.raw = true;
+          node.value = content;
+        } else {
+          node.remove();
+        }
       }
     }
   });
